@@ -18,6 +18,7 @@ CXRect gOldLocation = { 0, 0, 0, 0 };
 char szToolTipINISection[MAX_STRING] = { 0 };
 MQMouseInfo* pMousePos = EQADDR_MOUSE;
 constexpr int DelayMs = 500;
+PlayerClient* pOldPlayer = nullptr;
 
 class CToolTipWnd;
 CToolTipWnd* pToolTipWnd = nullptr;
@@ -58,20 +59,15 @@ VOID DestroyToolTipWindow()
 
 void CreateToolTipWindow()
 {
-	try {
-		if (pToolTipWnd)
-			return;
+	if (pToolTipWnd)
+		return;
 
-		DebugSpewAlways("%s::CreateHelpWindow()", PLUGIN_NAME);
+	DebugSpewAlways("%s::CreateToolTipWindow()", PLUGIN_NAME);
 
-		if (pSidlMgr->FindScreenPieceTemplate("ToolTipWnd")) {
-			if (pToolTipWnd = new CToolTipWnd("ToolTipWnd")) {
-				LoadWindowSettings(pToolTipWnd);
-			}
+	if (pSidlMgr->FindScreenPieceTemplate("ToolTipWnd")) {
+		if (pToolTipWnd = new CToolTipWnd("ToolTipWnd")) {
+			LoadWindowSettings(pToolTipWnd);
 		}
-	}
-	catch (...) {
-		MessageBox(NULL, "CRAP! in CreateToolTipWindow", "An exception occured", MB_OK);
 	}
 }
 
@@ -199,9 +195,40 @@ PLUGIN_API VOID ShutdownPlugin()
 	DestroyToolTipWindow();
 }
 
-PlayerClient* pOldPlayer = 0;
-PLUGIN_API VOID OnDrawHUD()
+PLUGIN_API VOID OnPulse()
 {
+	if (gGameState != GAMESTATE_INGAME)
+		return;
+
+	if (gGameState == GAMESTATE_INGAME && pCharSpawn) {
+		if (!pToolTipWnd) {
+			CreateToolTipWindow();
+		}
+	}
+
+	if (!gEnabled)
+		return;
+
+	if (PSPAWNINFO ps = GetCharInfo()->pSpawn) {
+		if (oldX != pMousePos->X || oldY != pMousePos->Y) {
+			MouseHover = false;
+			oldX = pMousePos->X;
+			oldY = pMousePos->Y;
+			Time = ps->TimeStamp;
+		}
+
+		if (ps->TimeStamp - Time > DelayMs) {
+			MouseHover = true;
+		}
+	}
+
+	if (pToolTipWnd && !pToolTipWnd->IsMouseOver()) {
+		if (pToolTipWnd->GetLocation() != gOldLocation) {
+			gOldLocation = pToolTipWnd->GetLocation();
+			SaveWindowSettings(pToolTipWnd);
+		}
+	}
+
 	if (gEnabled && gGameState == GAMESTATE_INGAME) {
 		PlayerClient* pPlayer = pEverQuest->ClickedPlayer(pMousePos->X, pMousePos->Y);
 		bool bRender = false;
@@ -296,41 +323,6 @@ PLUGIN_API VOID OnDrawHUD()
 					pToolTipWnd->Show(1, 1);
 				}
 			}
-		}
-	}
-}
-
-PLUGIN_API VOID OnPulse()
-{
-	if (gGameState != GAMESTATE_INGAME)
-		return;
-
-	if (gGameState == GAMESTATE_INGAME && pCharSpawn) {
-		if (!pToolTipWnd) {
-			CreateToolTipWindow();
-		}
-	}
-
-	if (!gEnabled)
-		return;
-
-	if (PSPAWNINFO ps = GetCharInfo()->pSpawn) {
-		if (oldX != pMousePos->X || oldY != pMousePos->Y) {
-			MouseHover = false;
-			oldX = pMousePos->X;
-			oldY = pMousePos->Y;
-			Time = ps->TimeStamp;
-		}
-
-		if (ps->TimeStamp - Time > DelayMs) {
-			MouseHover = true;
-		}
-	}
-
-	if (pToolTipWnd && !pToolTipWnd->IsMouseOver()) {
-		if (pToolTipWnd->GetLocation() != gOldLocation) {
-			gOldLocation = pToolTipWnd->GetLocation();
-			SaveWindowSettings((CSidlScreenWnd*)pToolTipWnd);
 		}
 	}
 }
