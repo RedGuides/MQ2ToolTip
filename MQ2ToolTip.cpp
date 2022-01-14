@@ -1,6 +1,7 @@
 #include <mq/Plugin.h>
 
 PreSetup("MQ2ToolTip");
+PLUGIN_VERSION(1.0f);
 #define PLUGIN_NAME "MQ2ToolTip"
 
 void SaveWindowSettings(CSidlScreenWnd* pWindow);
