@@ -332,33 +332,35 @@ VOID LoadWindowSettings(CSidlScreenWnd* pWindow)
 	strcpy_s(szToolTipINISection, "Default");
 
 	pWindow->SetLocation({
-		GetPrivateProfileInt(szToolTipINISection,"WindowLeft",   200,INIFileName),
-		GetPrivateProfileInt(szToolTipINISection,"WindowTop",       100,INIFileName),
-		GetPrivateProfileInt(szToolTipINISection,"WindowRight",      400,INIFileName),
-		GetPrivateProfileInt(szToolTipINISection,"WindowBottom",    200,INIFileName)
+		GetPrivateProfileInt(szToolTipINISection, "WindowLeft",      200, INIFileName),
+		GetPrivateProfileInt(szToolTipINISection, "WindowTop",       100, INIFileName),
+		GetPrivateProfileInt(szToolTipINISection, "WindowRight",     400, INIFileName),
+		GetPrivateProfileInt(szToolTipINISection, "WindowBottom",    200, INIFileName)
 	});
 
 	gOldLocation = pWindow->GetLocation();
-	pWindow->SetLocked(GetPrivateProfileBool(szToolTipINISection, "Locked", false, INIFileName));
-	pWindow->SetFades(GetPrivateProfileBool(szToolTipINISection, "Fades", true, INIFileName));
-	pWindow->SetFadeDelay(GetPrivateProfileInt(szToolTipINISection, "Delay", 2000, INIFileName));
-	pWindow->SetFadeDuration(GetPrivateProfileInt(szToolTipINISection, "Duration", 500, INIFileName));
-	pWindow->SetAlpha(GetPrivateProfileInt(szToolTipINISection, "Alpha", 200, INIFileName));
-	pWindow->SetFadeToAlpha(GetPrivateProfileInt(szToolTipINISection, "FadeToAlpha", 255, INIFileName));
-	pWindow->SetBGType(GetPrivateProfileInt(szToolTipINISection, "BGType", 1, INIFileName));
+	pWindow->SetLocked(GetPrivateProfileBool(szToolTipINISection,      "Locked", false, INIFileName));
+	pWindow->SetFades(GetPrivateProfileBool(szToolTipINISection,       "Fades",  true,  INIFileName));
+
+	pWindow->SetFadeDelay(GetPrivateProfileInt(szToolTipINISection,    "Delay",       2000, INIFileName));
+	pWindow->SetFadeDuration(GetPrivateProfileInt(szToolTipINISection, "Duration",    500,  INIFileName));
+	pWindow->SetAlpha(GetPrivateProfileInt(szToolTipINISection,        "Alpha",       200,  INIFileName));
+	pWindow->SetFadeToAlpha(GetPrivateProfileInt(szToolTipINISection,  "FadeToAlpha", 255,  INIFileName));
+	pWindow->SetBGType(GetPrivateProfileInt(szToolTipINISection,       "BGType",      1,    INIFileName));
 
 	ARGBCOLOR col = { 0 };
 	col.A = GetPrivateProfileInt(szToolTipINISection, "BGTint.alpha", 255, INIFileName);
-	col.R = GetPrivateProfileInt(szToolTipINISection, "BGTint.red", 0, INIFileName);
-	col.G = GetPrivateProfileInt(szToolTipINISection, "BGTint.green", 0, INIFileName);
-	col.B = GetPrivateProfileInt(szToolTipINISection, "BGTint.blue", 0, INIFileName);
+	col.R = GetPrivateProfileInt(szToolTipINISection, "BGTint.red",   0,   INIFileName);
+	col.G = GetPrivateProfileInt(szToolTipINISection, "BGTint.green", 0,   INIFileName);
+	col.B = GetPrivateProfileInt(szToolTipINISection, "BGTint.blue",  0,   INIFileName);
 	pWindow->SetBGColor(col.ARGB);
 
 	gFollowMouse = GetPrivateProfileBool(szToolTipINISection, "FollowMouse", false, INIFileName);
-	gEnabled = GetPrivateProfileBool(szToolTipINISection, "Enabled", true, INIFileName);
-	gAutoClear = GetPrivateProfileBool(szToolTipINISection, "AutoClear", true, INIFileName);
+	gEnabled = GetPrivateProfileBool(szToolTipINISection,     "Enabled",     true,  INIFileName);
+	gAutoClear = GetPrivateProfileBool(szToolTipINISection,   "AutoClear",   true,  INIFileName);
+	gGuildOn = GetPrivateProfileBool(szToolTipINISection,     "GuildOn",     true,  INIFileName);
+
 	gClearTimer = GetPrivateProfileInt(szToolTipINISection, "ClearTimer", 1000, INIFileName);
-	gGuildOn = GetPrivateProfileBool(szToolTipINISection, "GuildOn", true, INIFileName);
 }
 
 template <unsigned int _Size>LPSTR SafeItoa(int _Value, char(&_Buffer)[_Size], int _Radix)
@@ -379,32 +381,32 @@ void SaveWindowSettings(CSidlScreenWnd* pWindow)
 	char szTemp[MAX_STRING] = { 0 };
 	strcpy_s(szToolTipINISection, "Default");
 
-	WritePrivateProfileInt(szToolTipINISection, "WindowTop", pWindow->GetLocation().top, INIFileName);
-	WritePrivateProfileInt(szToolTipINISection, "WindowLeft", pWindow->GetLocation().left, INIFileName);
-	WritePrivateProfileInt(szToolTipINISection, "WindowRight", pWindow->GetLocation().right, INIFileName);
+	WritePrivateProfileInt(szToolTipINISection, "WindowTop",    pWindow->GetLocation().top,    INIFileName);
+	WritePrivateProfileInt(szToolTipINISection, "WindowLeft",   pWindow->GetLocation().left,   INIFileName);
+	WritePrivateProfileInt(szToolTipINISection, "WindowRight",  pWindow->GetLocation().right,  INIFileName);
 	WritePrivateProfileInt(szToolTipINISection, "WindowBottom", pWindow->GetLocation().bottom, INIFileName);
 
-	WritePrivateProfileBool(szToolTipINISection, "Locked", pWindow->IsLocked(), INIFileName);
-	WritePrivateProfileBool(szToolTipINISection, "Fades", pWindow->GetFades(), INIFileName);
-	WritePrivateProfileInt(szToolTipINISection, "Delay", pWindow->GetFadeDelay(), INIFileName);
-	WritePrivateProfileInt(szToolTipINISection, "Duration", pWindow->GetFadeDuration(), INIFileName);
-	WritePrivateProfileInt(szToolTipINISection, "Alpha", pWindow->GetAlpha(), INIFileName);
-	WritePrivateProfileInt(szToolTipINISection, "FadeToAlpha", pWindow->GetFadeToAlpha(), INIFileName);
-	WritePrivateProfileInt(szToolTipINISection, "BGType", pWindow->GetBGType(), INIFileName);
+	WritePrivateProfileBool(szToolTipINISection, "Locked",      pWindow->IsLocked(),        INIFileName);
+	WritePrivateProfileBool(szToolTipINISection, "Fades",       pWindow->GetFades(),        INIFileName);
+	WritePrivateProfileInt(szToolTipINISection,  "Delay",       pWindow->GetFadeDelay(),    INIFileName);
+	WritePrivateProfileInt(szToolTipINISection,  "Duration",    pWindow->GetFadeDuration(), INIFileName);
+	WritePrivateProfileInt(szToolTipINISection,  "Alpha",       pWindow->GetAlpha(),        INIFileName);
+	WritePrivateProfileInt(szToolTipINISection,  "FadeToAlpha", pWindow->GetFadeToAlpha(),  INIFileName);
+	WritePrivateProfileInt(szToolTipINISection,  "BGType",      pWindow->GetBGType(),       INIFileName);
 
 	ARGBCOLOR col = { 0 };
 	col.ARGB = pWindow->GetBGColor();
 	WritePrivateProfileInt(szToolTipINISection, "BGTint.alpha", col.A, INIFileName);
-	WritePrivateProfileInt(szToolTipINISection, "BGTint.red", col.R, INIFileName);
+	WritePrivateProfileInt(szToolTipINISection, "BGTint.red",   col.R, INIFileName);
 	WritePrivateProfileInt(szToolTipINISection, "BGTint.green", col.G, INIFileName);
-	WritePrivateProfileInt(szToolTipINISection, "BGTint.blue", col.B, INIFileName);
+	WritePrivateProfileInt(szToolTipINISection, "BGTint.blue",  col.B, INIFileName);
 
 	//Plugin Options
 	WritePrivateProfileBool(szToolTipINISection, "FollowMouse", gFollowMouse, INIFileName);
-	WritePrivateProfileBool(szToolTipINISection, "Enabled", gEnabled, INIFileName);
-	WritePrivateProfileBool(szToolTipINISection, "AutoClear", gAutoClear, INIFileName);
-	WritePrivateProfileInt(szToolTipINISection, "ClearTimer", gClearTimer, INIFileName);
-	WritePrivateProfileBool(szToolTipINISection, "GuildOn", gGuildOn, INIFileName);
+	WritePrivateProfileBool(szToolTipINISection, "Enabled",     gEnabled,     INIFileName);
+	WritePrivateProfileBool(szToolTipINISection, "AutoClear",   gAutoClear,   INIFileName);
+	WritePrivateProfileInt(szToolTipINISection,  "ClearTimer",  gClearTimer,  INIFileName);
+	WritePrivateProfileBool(szToolTipINISection, "GuildOn",     gGuildOn,     INIFileName);
 }
 
 PLUGIN_API VOID OnCleanUI()
