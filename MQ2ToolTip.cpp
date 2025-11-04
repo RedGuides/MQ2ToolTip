@@ -27,32 +27,31 @@ CToolTipWnd* pToolTipWnd = nullptr;
 class CToolTipWnd : public CSidlScreenWnd
 {
 public:
-	CToolTipWnd(CXStr& screenpiece) : CSidlScreenWnd(nullptr, screenpiece, -1, 1, nullptr)
+	CToolTipWnd(const CXStr& screenpiece) : CSidlScreenWnd(nullptr, screenpiece, -1, 1, nullptr)
 	{
 		CreateChildrenFromSidl();
-		//pXWnd()->Show(1,1);
 		SetEscapable(false);
-		Display = (CStmlWnd*)GetChildItem("TT_Display");
+
+		Display = static_cast<CStmlWnd*>(GetChildItem("TT_Display"));
 	}
 
-	CToolTipWnd(char* screenpiece) : CSidlScreenWnd(nullptr, CXStr(screenpiece), -1, 1, nullptr)
+	CToolTipWnd(const char* screenpiece) : CSidlScreenWnd(nullptr, CXStr(screenpiece), -1, 1, nullptr)
 	{
 		CreateChildrenFromSidl();
-		// pXWnd()->Show(1,1);
 		SetEscapable(false);
-		Display = (CStmlWnd*)GetChildItem("TT_Display");
-	}
 
-	~CToolTipWnd() {};
+		Display = static_cast<CStmlWnd*>(GetChildItem("TT_Display"));
+	}
 
 	CStmlWnd* Display = nullptr;
 };
 
-VOID DestroyToolTipWindow()
+void DestroyToolTipWindow()
 {
 	if (pToolTipWnd)
 	{
 		SaveWindowSettings(pToolTipWnd);
+
 		delete pToolTipWnd;
 		pToolTipWnd = nullptr;
 	}
@@ -65,21 +64,23 @@ void CreateToolTipWindow()
 
 	DebugSpewAlways("%s::CreateToolTipWindow()", PLUGIN_NAME);
 
-	if (pSidlMgr->FindScreenPieceTemplate("ToolTipWnd")) {
-		if (pToolTipWnd = new CToolTipWnd("ToolTipWnd")) {
-			LoadWindowSettings(pToolTipWnd);
-		}
+	if (pSidlMgr->FindScreenPieceTemplate("ToolTipWnd"))
+	{
+		pToolTipWnd = new CToolTipWnd("ToolTipWnd");
+		LoadWindowSettings(pToolTipWnd);
 	}
 }
 
-void ToolTipCmd(PSPAWNINFO pSpawn, char* arg)
+void ToolTipCmd(PlayerClient*, const char* arg)
 {
 	char szArg[MAX_STRING] = { 0 };
 	GetArg(szArg, arg, 1);
 	bool bSaveStuff = false;
 
-	if (szArg[0]) {
-		if (!_stricmp(szArg, "on")) {
+	if (szArg[0])
+	{
+		if (!_stricmp(szArg, "on"))
+		{
 			gEnabled = true;
 			WritePrivateProfileStringA("Default", "Enabled", "1", INIFileName);
 			WriteChatColor("ToolTip is now ON", CONCOLOR_LIGHTBLUE);
@@ -88,28 +89,35 @@ void ToolTipCmd(PSPAWNINFO pSpawn, char* arg)
 				CreateToolTipWindow();
 
 			if (pToolTipWnd)
-				pToolTipWnd->Show(1, 1);
+				pToolTipWnd->Show(true);
 
 			bSaveStuff = true;
-
-		} else if (!_stricmp(szArg, "off")) {
+		}
+		else if (!_stricmp(szArg, "off"))
+		{
 			gEnabled = false;
 			WritePrivateProfileStringA("Default", "Enabled", "0", INIFileName);
 			WriteChatColor("ToolTip is now OFF"), CONCOLOR_YELLOW;
+
 			if (pToolTipWnd)
-				pToolTipWnd->Show(0, 1);
+				pToolTipWnd->Show(false);
 
 			bSaveStuff = true;
 
-		} else if (!_stricmp(szArg, "autoclear")) {
+		}
+		else if (!_stricmp(szArg, "autoclear"))
+		{
 			GetArg(szArg, arg, 2);
-			if (!_stricmp(szArg, "on")) {
+
+			if (!_stricmp(szArg, "on"))
+			{
 				gAutoClear = true;
 				WriteChatColor("Autoclear is now ON", CONCOLOR_LIGHTBLUE);
 				bSaveStuff = true;
 			}
 
-			if (!_stricmp(szArg, "off")) {
+			if (!_stricmp(szArg, "off"))
+			{
 				gAutoClear = false;
 				WriteChatColor("Autoclear is now OFF", CONCOLOR_YELLOW);
 				bSaveStuff = true;
@@ -118,28 +126,38 @@ void ToolTipCmd(PSPAWNINFO pSpawn, char* arg)
 			if (!bSaveStuff)
 				WriteChatf("Autoclear is curently %s", gAutoClear ? "TRUE" : "FALSE");
 
-		} else if (!_stricmp(szArg, "cleartimer")) {
+		}
+		else if (!_stricmp(szArg, "cleartimer"))
+		{
 			GetArg(szArg, arg, 2);
-			if (szArg[0] && IsNumber(&szArg[0])) {
+
+			if (szArg[0] && IsNumber(&szArg[0]))
+			{
 				gClearTimer = atoi(szArg);
 				WriteChatf("ToolTip autoclear time: %d ms", gClearTimer);
 			}
-			else {
+			else
+			{
 				WriteChatColor("ToolTip autoclear reset to default: 1000 ms", CONCOLOR_YELLOW);
 				gClearTimer = 1000;
 			}
 
 			bSaveStuff = true;
 
-		} else if (!_stricmp(szArg, "follow")) {
+		}
+		else if (!_stricmp(szArg, "follow"))
+		{
 			GetArg(szArg, arg, 2);
-			if (!_stricmp(szArg, "on")) {
+
+			if (!_stricmp(szArg, "on"))
+			{
 				gFollowMouse = true;
 				WriteChatColor("FollowMouse is now ON", CONCOLOR_LIGHTBLUE);
 				bSaveStuff = true;
 			}
 
-			if (!_stricmp(szArg, "off")) {
+			if (!_stricmp(szArg, "off"))
+			{
 				gFollowMouse = false;
 				WriteChatColor("FollowMouse is now OFF", CONCOLOR_YELLOW);
 				bSaveStuff = true;
@@ -148,15 +166,20 @@ void ToolTipCmd(PSPAWNINFO pSpawn, char* arg)
 			if (!bSaveStuff)
 				WriteChatf("FollowMouse is curently %s", gFollowMouse ? "TRUE" : "FALSE");
 
-		} else if (!_stricmp(szArg, "guild")) {
+		}
+		else if (!_stricmp(szArg, "guild"))
+		{
 			GetArg(szArg, arg, 2);
-			if (!_stricmp(szArg, "on")) {
+
+			if (!_stricmp(szArg, "on"))
+			{
 				gGuildOn = true;
 				WriteChatColor("Displaying Guild is now ON", CONCOLOR_LIGHTBLUE);
 				bSaveStuff = true;
 			}
 
-			if (!_stricmp(szArg, "off")) {
+			if (!_stricmp(szArg, "off"))
+			{
 				gGuildOn = false;
 				WriteChatColor("Displaying Guild is now OFF", CONCOLOR_YELLOW);
 				bSaveStuff = true;
@@ -166,7 +189,8 @@ void ToolTipCmd(PSPAWNINFO pSpawn, char* arg)
 				WriteChatf("Displaying Guild is curently %s", gGuildOn ? "TRUE" : "FALSE");
 		}
 	}
-	else {
+	else
+	{
 		WriteChatColor("[ToolTip Help] - make sure your hud is on either by F11 or by typing /hud always)", CONCOLOR_YELLOW);
 		WriteChatColor("/tooltip on|off (Enables or disables the Tooltip window)", CONCOLOR_YELLOW);
 		WriteChatColor("/tooltip autoclear on|off (Clears the tooltip window if you move the mouse)", CONCOLOR_YELLOW);
@@ -177,31 +201,31 @@ void ToolTipCmd(PSPAWNINFO pSpawn, char* arg)
 
 	if (bSaveStuff)
 		SaveWindowSettings(pToolTipWnd);
-
-	return;
 }
 
-PLUGIN_API VOID InitializePlugin()
+PLUGIN_API void InitializePlugin()
 {
 	DebugSpewAlways("Initializing MQ2ToolTip");
 	AddXMLFile("MQUI_ToolTipWnd.xml");
-	AddCommand("/tooltip", ToolTipCmd, FALSE, TRUE);
+	AddCommand("/tooltip", ToolTipCmd, false, true);
 }
 
-PLUGIN_API VOID ShutdownPlugin()
+PLUGIN_API void ShutdownPlugin()
 {
 	DebugSpewAlways("Shutting down MQ2ToolTip");
 	RemoveCommand("/tooltip");
 	DestroyToolTipWindow();
 }
 
-PLUGIN_API VOID OnPulse()
+PLUGIN_API void OnPulse()
 {
 	if (gGameState != GAMESTATE_INGAME)
 		return;
 
-	if (gGameState == GAMESTATE_INGAME && pCharSpawn) {
-		if (!pToolTipWnd) {
+	if (gGameState == GAMESTATE_INGAME && pCharSpawn)
+	{
+		if (!pToolTipWnd)
+		{
 			CreateToolTipWindow();
 		}
 	}
@@ -209,30 +233,38 @@ PLUGIN_API VOID OnPulse()
 	if (!gEnabled)
 		return;
 
-	if (PlayerClient* ps = GetCharInfo()->pSpawn) {
-		if (oldX != pMousePos->X || oldY != pMousePos->Y) {
+	if (pLocalPlayer)
+	{
+		if (oldX != pMousePos->X || oldY != pMousePos->Y)
+		{
 			MouseHover = false;
 			oldX = pMousePos->X;
 			oldY = pMousePos->Y;
-			Time = ps->TimeStamp;
+			Time = pLocalPlayer->TimeStamp;
 		}
 
-		if (ps->TimeStamp - Time > DelayMs) {
+		if (pLocalPlayer->TimeStamp - Time > DelayMs)
+		{
 			MouseHover = true;
 		}
 	}
 
-	if (pToolTipWnd && !pToolTipWnd->IsMouseOver()) {
-		if (pToolTipWnd->GetLocation() != gOldLocation) {
+	if (pToolTipWnd && !pToolTipWnd->IsMouseOver())
+	{
+		if (pToolTipWnd->GetLocation() != gOldLocation)
+		{
 			gOldLocation = pToolTipWnd->GetLocation();
 			SaveWindowSettings(pToolTipWnd);
 		}
 	}
 
-	if (gEnabled && gGameState == GAMESTATE_INGAME) {
+	if (gEnabled && gGameState == GAMESTATE_INGAME)
+	{
 		PlayerClient* pPlayer = pEverQuest->ClickedPlayer(pMousePos->X, pMousePos->Y);
 		bool bRender = false;
-		if (pPlayer && !*pMouseLook && MouseHover) {
+
+		if (pPlayer && !*pMouseLook && MouseHover)
+		{
 			if (pPlayer->Rider)
 				pPlayer = pPlayer->Rider;
 
@@ -240,36 +272,47 @@ PLUGIN_API VOID OnPulse()
 			bRender = true;
 			uClearTimerOld = GetTickCount64();
 		}
-		else if (pOldPlayer) {
-			if (gFollowMouse && pToolTipWnd) {
-				if (GetTickCount64() > uClearTimerOld + gClearTimer && !pToolTipWnd->IsMouseOver()) {
-					pToolTipWnd->Show(0, 1);
+		else if (pOldPlayer)
+		{
+			if (gFollowMouse && pToolTipWnd)
+			{
+				if (GetTickCount64() > uClearTimerOld + gClearTimer && !pToolTipWnd->IsMouseOver())
+				{
+					pToolTipWnd->Show(false);
 					return;
 				}
 			}
 
-			if (!gAutoClear) {
-				if (GetSpawnByID(pOldPlayer->SpawnID)) {
+			if (!gAutoClear)
+			{
+				if (GetSpawnByID(pOldPlayer->SpawnID))
+				{
 					pPlayer = pOldPlayer;
 					bRender = true;
 				}
 			}
-			else if (GetTickCount64() > uClearTimerOld + gClearTimer && pToolTipWnd) {
-				pToolTipWnd->Display->SetSTMLText("", 1);
+			else if (GetTickCount64() > uClearTimerOld + gClearTimer && pToolTipWnd)
+			{
+				pToolTipWnd->Display->SetSTMLText("", false);
 				pToolTipWnd->Display->ForceParseNow();
 			}
 		}
 
-		//GetPosition
-		if (bRender && pToolTipWnd) {
-			if (pLocalPC && pLocalPlayer) {
-				char szTemp[MAX_STRING] = { 0 };
-				sprintf_s(szTemp, "%s\n%i %s", pPlayer->DisplayedName, pPlayer->Level, pEverQuest->GetClassThreeLetterCode(pPlayer->mActorClient.Class));
+		// GetPosition
+		if (bRender && pToolTipWnd)
+		{
+			if (pLocalPC && pLocalPlayer)
+			{
+				char szTemp[MAX_STRING] = {};
+				sprintf_s(szTemp, "%s\n%i %s", pPlayer->DisplayedName, pPlayer->Level,
+					pEverQuest->GetClassThreeLetterCode(pPlayer->mActorClient.Class));
 
-				if (bRender) {
-					pToolTipWnd->Show(false, true);
+				if (bRender)
+				{
+					pToolTipWnd->Show(false);
 
-					if (gFollowMouse) {
+					if (gFollowMouse)
+					{
 						CXPoint pt;
 						pt.x = pMousePos->X + 5;
 						pt.y = pMousePos->Y + 5;
@@ -280,23 +323,27 @@ PLUGIN_API VOID OnPulse()
 				unsigned int argbcolor = ConColor(pPlayer);
 				unsigned int realcolor = ConColorToARGB(argbcolor) & 0x00FFFFFF;
 
-				if (pTarget && pTarget->SpawnID == pPlayer->SpawnID) {
+				if (pTarget && pTarget->SpawnID == pPlayer->SpawnID)
+				{
 					sprintf_s(szTemp, "<c \"#%06X\">%s </c><c \"#00FFFF\">*TARGET*</c>", realcolor, pPlayer->DisplayedName);
 				}
 				else {
 					sprintf_s(szTemp, "<c \"#%06X\">%s </c>", realcolor, pPlayer->DisplayedName);
 				}
 
-				CXStr NewText(szTemp);
-				pToolTipWnd->Display->SetSTMLText(NewText, 1, 0);
+				pToolTipWnd->Display->SetSTMLText(szTemp, false);
+
 				unsigned int typecolor = GetSpawnType(pPlayer);
 				const char* sthetype = GetTypeDesc(GetSpawnType(pPlayer));
-				sprintf_s(szTemp, "<BR>Level %i %s <c \"#%06X\"><%s></c>", pPlayer->Level, GetClassDesc(pPlayer->mActorClient.Class), typecolor, sthetype);
+				sprintf_s(szTemp, "<BR>Level %i %s <c \"#%06X\"><%s></c>", pPlayer->Level,
+					GetClassDesc(pPlayer->mActorClient.Class), typecolor, sthetype);
 
-				if (gGuildOn) {
-					const char* szGuild = GetGuildByID(pPlayer->GuildID);
-					if (const char* theguild = szGuild) {
-						sprintf_s(szTemp, "<BR><c \"#00FF00\">GUILD:</c>%s<BR>Level %i %s <c \"#%06X\"><%s></c>", theguild, pPlayer->Level, GetClassDesc(pPlayer->mActorClient.Class), typecolor, sthetype);
+				if (gGuildOn)
+				{
+					if (const char* szGuild = GetGuildByID(pPlayer->GuildID))
+					{
+						sprintf_s(szTemp, "<BR><c \"#00FF00\">GUILD:</c>%s<BR>Level %i %s <c \"#%06X\"><%s></c>",
+							szGuild, pPlayer->Level, GetClassDesc(pPlayer->mActorClient.Class), typecolor, sthetype);
 					}
 				}
 
@@ -304,30 +351,36 @@ PLUGIN_API VOID OnPulse()
 				int64_t maxhp = pLocalPlayer->HPMax;
 				int64_t hppct = 0;
 
-				if (maxhp != 0) {
+				if (maxhp != 0)
+				{
 					hppct = pLocalPlayer->HPCurrent * 100 / maxhp;
 				}
 
 				int maxmana = pLocalPlayer->GetMaxMana();
 				unsigned int manapct = 0;
 
-				if (maxmana != 0) {
+				if (maxmana != 0)
+				{
 					manapct = pLocalPlayer->GetCurrentMana() * 100 / maxmana;
 				}
 
-				sprintf_s(szTemp, "<BR>ID: %i <c \"#FF69B4\">HP:</c> %I64d%% <c \"#0080FF\">Mana:</c> %d%%<BR>Loc: %.2f, %.2f, %.2f<br>Distance: %.2f", pPlayer->SpawnID, hppct, manapct, pPlayer->X, pPlayer->Y, pPlayer->Z, GetDistance3D(pLocalPlayer->X, pLocalPlayer->Y, pLocalPlayer->Z, pPlayer->X, pPlayer->Y, pPlayer->Z));
+				sprintf_s(szTemp, "<BR>ID: %i <c \"#FF69B4\">HP:</c> %I64d%% <c \"#0080FF\">Mana:</c> %d%%<BR>Loc: %.2f, %.2f, %.2f<br>Distance: %.2f",
+					pPlayer->SpawnID, hppct, manapct, pPlayer->X, pPlayer->Y, pPlayer->Z,
+					GetDistance3D(pLocalPlayer->X, pLocalPlayer->Y, pLocalPlayer->Z, pPlayer->X, pPlayer->Y, pPlayer->Z));
+
 				pToolTipWnd->Display->AppendSTML(szTemp);
 				pToolTipWnd->Display->ForceParseNow();
 
-				if (bRender) {
-					pToolTipWnd->Show(1, 1);
+				if (bRender)
+				{
+					pToolTipWnd->Show(true);
 				}
 			}
 		}
 	}
 }
 
-VOID LoadWindowSettings(CSidlScreenWnd* pWindow)
+void LoadWindowSettings(CSidlScreenWnd* pWindow)
 {
 	strcpy_s(szToolTipINISection, "Default");
 
@@ -363,22 +416,11 @@ VOID LoadWindowSettings(CSidlScreenWnd* pWindow)
 	gClearTimer = GetPrivateProfileInt(szToolTipINISection, "ClearTimer", 1000, INIFileName);
 }
 
-template <unsigned int _Size>LPSTR SafeItoa(int _Value, char(&_Buffer)[_Size], int _Radix)
-{
-	errno_t err = _itoa_s(_Value, _Buffer, _Radix);
-	if (!err) {
-		return _Buffer;
-	}
-
-	return "";
-}
-
 void SaveWindowSettings(CSidlScreenWnd* pWindow)
 {
 	if (!pWindow)
 		return;
 
-	char szTemp[MAX_STRING] = { 0 };
 	strcpy_s(szToolTipINISection, "Default");
 
 	WritePrivateProfileInt(szToolTipINISection, "WindowTop",    pWindow->GetLocation().top,    INIFileName);
@@ -409,18 +451,24 @@ void SaveWindowSettings(CSidlScreenWnd* pWindow)
 	WritePrivateProfileBool(szToolTipINISection, "GuildOn",     gGuildOn,     INIFileName);
 }
 
-PLUGIN_API VOID OnCleanUI()
+PLUGIN_API void OnCleanUI()
 {
-	DebugSpewAlways("MQ2ToolTip::OnCleanUI()");
 	DestroyToolTipWindow();
 }
 
 // Called once directly after the game ui is reloaded, after issuing /loadskin
-PLUGIN_API VOID OnReloadUI()
+PLUGIN_API void OnReloadUI()
 {
-	DebugSpewAlways("MQ2ToolTip::OnReloadUI()");
-	if (gGameState == GAMESTATE_INGAME && pLocalPlayer) {
+	if (gGameState == GAMESTATE_INGAME && pLocalPlayer)
+	{
 		CreateToolTipWindow();
 	}
 }
 
+PLUGIN_API void OnRemoveSpawn(PlayerClient* pSpawn)
+{
+	if (pSpawn == pOldPlayer)
+	{
+		pOldPlayer = nullptr;
+	}
+}
