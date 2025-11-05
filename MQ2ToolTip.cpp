@@ -1,14 +1,12 @@
 #include <mq/Plugin.h>
+#include <chrono>
 
 PreSetup("MQ2ToolTip");
 PLUGIN_VERSION(1.0);
 #define PLUGIN_NAME "MQ2ToolTip"
 
-void SaveWindowSettings(CSidlScreenWnd* pWindow);
-void LoadWindowSettings(CSidlScreenWnd* pWindow);
-unsigned int oldX = 0, oldY = 0;
-bool MouseHover = 0;
-unsigned int Time = 0;
+int oldX = 0, oldY = 0;
+bool MouseHover = false;
 bool gEnabled = false;
 bool gFollowMouse = false;
 bool gAutoClear = false;
@@ -18,247 +16,34 @@ uint64_t uClearTimerOld = 0;
 CXRect gOldLocation = { 0, 0, 0, 0 };
 char szToolTipINISection[MAX_STRING] = { 0 };
 MQMouseInfo* pMousePos = EQADDR_MOUSE;
-constexpr int DelayMs = 500;
 PlayerClient* pOldPlayer = nullptr;
 
-class CToolTipWnd;
-CToolTipWnd* pToolTipWnd = nullptr;
+using std::chrono::steady_clock;
+
+constexpr std::chrono::milliseconds TooltipDelay{ 500 };
+static steady_clock::time_point s_lastUpdate;
 
 class CToolTipWnd : public CSidlScreenWnd
 {
 public:
-	CToolTipWnd(const CXStr& screenpiece) : CSidlScreenWnd(nullptr, screenpiece, -1, 1, nullptr)
+	CToolTipWnd(const char* screenpiece)
+		: CSidlScreenWnd(nullptr, screenpiece, -1, 1, nullptr)
 	{
 		CreateChildrenFromSidl();
 		SetEscapable(false);
+		SetWindowStyle((GetWindowStyle() & ~CWS_TITLE) | CWS_CLIENTMOVABLE);
 
-		Display = static_cast<CStmlWnd*>(GetChildItem("TT_Display"));
+		LoadWindowSettings();
+
+		m_display = static_cast<CStmlWnd*>(GetChildItem("TT_Display"));
 	}
 
-	CToolTipWnd(const char* screenpiece) : CSidlScreenWnd(nullptr, CXStr(screenpiece), -1, 1, nullptr)
+	virtual ~CToolTipWnd() override
 	{
-		CreateChildrenFromSidl();
-		SetEscapable(false);
-
-		Display = static_cast<CStmlWnd*>(GetChildItem("TT_Display"));
+		SaveWindowSettings();
 	}
 
-	CStmlWnd* Display = nullptr;
-};
-
-void DestroyToolTipWindow()
-{
-	if (pToolTipWnd)
-	{
-		SaveWindowSettings(pToolTipWnd);
-
-		delete pToolTipWnd;
-		pToolTipWnd = nullptr;
-	}
-}
-
-void CreateToolTipWindow()
-{
-	if (pToolTipWnd)
-		return;
-
-	DebugSpewAlways("%s::CreateToolTipWindow()", PLUGIN_NAME);
-
-	if (pSidlMgr->FindScreenPieceTemplate("ToolTipWnd"))
-	{
-		pToolTipWnd = new CToolTipWnd("ToolTipWnd");
-		LoadWindowSettings(pToolTipWnd);
-	}
-}
-
-void ToolTipCmd(PlayerClient*, const char* arg)
-{
-	char szArg[MAX_STRING] = { 0 };
-	GetArg(szArg, arg, 1);
-	bool bSaveStuff = false;
-
-	if (szArg[0])
-	{
-		if (!_stricmp(szArg, "on"))
-		{
-			gEnabled = true;
-			WritePrivateProfileStringA("Default", "Enabled", "1", INIFileName);
-			WriteChatColor("ToolTip is now ON", CONCOLOR_LIGHTBLUE);
-
-			if (!pToolTipWnd)
-				CreateToolTipWindow();
-
-			if (pToolTipWnd)
-				pToolTipWnd->Show(true);
-
-			bSaveStuff = true;
-		}
-		else if (!_stricmp(szArg, "off"))
-		{
-			gEnabled = false;
-			WritePrivateProfileStringA("Default", "Enabled", "0", INIFileName);
-			WriteChatColor("ToolTip is now OFF"), CONCOLOR_YELLOW;
-
-			if (pToolTipWnd)
-				pToolTipWnd->Show(false);
-
-			bSaveStuff = true;
-
-		}
-		else if (!_stricmp(szArg, "autoclear"))
-		{
-			GetArg(szArg, arg, 2);
-
-			if (!_stricmp(szArg, "on"))
-			{
-				gAutoClear = true;
-				WriteChatColor("Autoclear is now ON", CONCOLOR_LIGHTBLUE);
-				bSaveStuff = true;
-			}
-
-			if (!_stricmp(szArg, "off"))
-			{
-				gAutoClear = false;
-				WriteChatColor("Autoclear is now OFF", CONCOLOR_YELLOW);
-				bSaveStuff = true;
-			}
-
-			if (!bSaveStuff)
-				WriteChatf("Autoclear is curently %s", gAutoClear ? "TRUE" : "FALSE");
-
-		}
-		else if (!_stricmp(szArg, "cleartimer"))
-		{
-			GetArg(szArg, arg, 2);
-
-			if (szArg[0] && IsNumber(&szArg[0]))
-			{
-				gClearTimer = atoi(szArg);
-				WriteChatf("ToolTip autoclear time: %d ms", gClearTimer);
-			}
-			else
-			{
-				WriteChatColor("ToolTip autoclear reset to default: 1000 ms", CONCOLOR_YELLOW);
-				gClearTimer = 1000;
-			}
-
-			bSaveStuff = true;
-
-		}
-		else if (!_stricmp(szArg, "follow"))
-		{
-			GetArg(szArg, arg, 2);
-
-			if (!_stricmp(szArg, "on"))
-			{
-				gFollowMouse = true;
-				WriteChatColor("FollowMouse is now ON", CONCOLOR_LIGHTBLUE);
-				bSaveStuff = true;
-			}
-
-			if (!_stricmp(szArg, "off"))
-			{
-				gFollowMouse = false;
-				WriteChatColor("FollowMouse is now OFF", CONCOLOR_YELLOW);
-				bSaveStuff = true;
-			}
-
-			if (!bSaveStuff)
-				WriteChatf("FollowMouse is curently %s", gFollowMouse ? "TRUE" : "FALSE");
-
-		}
-		else if (!_stricmp(szArg, "guild"))
-		{
-			GetArg(szArg, arg, 2);
-
-			if (!_stricmp(szArg, "on"))
-			{
-				gGuildOn = true;
-				WriteChatColor("Displaying Guild is now ON", CONCOLOR_LIGHTBLUE);
-				bSaveStuff = true;
-			}
-
-			if (!_stricmp(szArg, "off"))
-			{
-				gGuildOn = false;
-				WriteChatColor("Displaying Guild is now OFF", CONCOLOR_YELLOW);
-				bSaveStuff = true;
-			}
-
-			if (!bSaveStuff)
-				WriteChatf("Displaying Guild is curently %s", gGuildOn ? "TRUE" : "FALSE");
-		}
-	}
-	else
-	{
-		WriteChatColor("[ToolTip Help] - make sure your hud is on either by F11 or by typing /hud always)", CONCOLOR_YELLOW);
-		WriteChatColor("/tooltip on|off (Enables or disables the Tooltip window)", CONCOLOR_YELLOW);
-		WriteChatColor("/tooltip autoclear on|off (Clears the tooltip window if you move the mouse)", CONCOLOR_YELLOW);
-		WriteChatColor("/tooltip cleartimer <ms> (Sets the number of milliseconds tooltip shoud wait before if clears the window if autoclear is on", CONCOLOR_YELLOW);
-		WriteChatColor("/tooltip follow on|off (Will follow the mouse around)", CONCOLOR_YELLOW);
-		WriteChatColor("/tooltip guild on|off (Will display Guild tag in the tooltip as well)", CONCOLOR_YELLOW);
-	}
-
-	if (bSaveStuff)
-		SaveWindowSettings(pToolTipWnd);
-}
-
-PLUGIN_API void InitializePlugin()
-{
-	DebugSpewAlways("Initializing MQ2ToolTip");
-	AddXMLFile("MQUI_ToolTipWnd.xml");
-	AddCommand("/tooltip", ToolTipCmd, false, true);
-}
-
-PLUGIN_API void ShutdownPlugin()
-{
-	DebugSpewAlways("Shutting down MQ2ToolTip");
-	RemoveCommand("/tooltip");
-	DestroyToolTipWindow();
-}
-
-PLUGIN_API void OnPulse()
-{
-	if (gGameState != GAMESTATE_INGAME)
-		return;
-
-	if (gGameState == GAMESTATE_INGAME && pCharSpawn)
-	{
-		if (!pToolTipWnd)
-		{
-			CreateToolTipWindow();
-		}
-	}
-
-	if (!gEnabled)
-		return;
-
-	if (pLocalPlayer)
-	{
-		if (oldX != pMousePos->X || oldY != pMousePos->Y)
-		{
-			MouseHover = false;
-			oldX = pMousePos->X;
-			oldY = pMousePos->Y;
-			Time = pLocalPlayer->TimeStamp;
-		}
-
-		if (pLocalPlayer->TimeStamp - Time > DelayMs)
-		{
-			MouseHover = true;
-		}
-	}
-
-	if (pToolTipWnd && !pToolTipWnd->IsMouseOver())
-	{
-		if (pToolTipWnd->GetLocation() != gOldLocation)
-		{
-			gOldLocation = pToolTipWnd->GetLocation();
-			SaveWindowSettings(pToolTipWnd);
-		}
-	}
-
-	if (gEnabled && gGameState == GAMESTATE_INGAME)
+	void Update()
 	{
 		PlayerClient* pPlayer = pEverQuest->ClickedPlayer(pMousePos->X, pMousePos->Y);
 		bool bRender = false;
@@ -274,11 +59,11 @@ PLUGIN_API void OnPulse()
 		}
 		else if (pOldPlayer)
 		{
-			if (gFollowMouse && pToolTipWnd)
+			if (gFollowMouse)
 			{
-				if (GetTickCount64() > uClearTimerOld + gClearTimer && !pToolTipWnd->IsMouseOver())
+				if (GetTickCount64() > uClearTimerOld + gClearTimer && !IsMouseOver())
 				{
-					pToolTipWnd->Show(false);
+					Show(false);
 					return;
 				}
 			}
@@ -291,17 +76,17 @@ PLUGIN_API void OnPulse()
 					bRender = true;
 				}
 			}
-			else if (GetTickCount64() > uClearTimerOld + gClearTimer && pToolTipWnd)
+			else if (GetTickCount64() > uClearTimerOld + gClearTimer)
 			{
-				pToolTipWnd->Display->SetSTMLText("", false);
-				pToolTipWnd->Display->ForceParseNow();
+				m_display->SetSTMLText("", false);
+				m_display->ForceParseNow();
 			}
 		}
 
 		// GetPosition
-		if (bRender && pToolTipWnd)
+		if (bRender)
 		{
-			if (pLocalPC && pLocalPlayer)
+			if (pLocalPlayer)
 			{
 				char szTemp[MAX_STRING] = {};
 				sprintf_s(szTemp, "%s\n%i %s", pPlayer->DisplayedName, pPlayer->Level,
@@ -309,14 +94,14 @@ PLUGIN_API void OnPulse()
 
 				if (bRender)
 				{
-					pToolTipWnd->Show(false);
+					Show(false);
 
 					if (gFollowMouse)
 					{
 						CXPoint pt;
 						pt.x = pMousePos->X + 5;
 						pt.y = pMousePos->Y + 5;
-						pToolTipWnd->Move(pt);
+						Move(pt);
 					}
 				}
 
@@ -331,7 +116,7 @@ PLUGIN_API void OnPulse()
 					sprintf_s(szTemp, "<c \"#%06X\">%s </c>", realcolor, pPlayer->DisplayedName);
 				}
 
-				pToolTipWnd->Display->SetSTMLText(szTemp, false);
+				m_display->SetSTMLText(szTemp, false);
 
 				unsigned int typecolor = GetSpawnType(pPlayer);
 				const char* sthetype = GetTypeDesc(GetSpawnType(pPlayer));
@@ -347,7 +132,7 @@ PLUGIN_API void OnPulse()
 					}
 				}
 
-				pToolTipWnd->Display->AppendSTML(szTemp);
+				m_display->AppendSTML(szTemp);
 				int64_t maxhp = pLocalPlayer->HPMax;
 				int64_t hppct = 0;
 
@@ -368,87 +153,298 @@ PLUGIN_API void OnPulse()
 					pPlayer->SpawnID, hppct, manapct, pPlayer->X, pPlayer->Y, pPlayer->Z,
 					GetDistance3D(pLocalPlayer->X, pLocalPlayer->Y, pLocalPlayer->Z, pPlayer->X, pPlayer->Y, pPlayer->Z));
 
-				pToolTipWnd->Display->AppendSTML(szTemp);
-				pToolTipWnd->Display->ForceParseNow();
+				m_display->AppendSTML(szTemp);
+				m_display->ForceParseNow();
 
 				if (bRender)
 				{
-					pToolTipWnd->Show(true);
+					Show(true);
 				}
 			}
 		}
 	}
+
+	void LoadWindowSettings()
+	{
+		strcpy_s(szToolTipINISection, "Default");
+
+		SetLocation({
+			GetPrivateProfileInt(szToolTipINISection, "WindowLeft",      200, INIFileName),
+			GetPrivateProfileInt(szToolTipINISection, "WindowTop",       100, INIFileName),
+			GetPrivateProfileInt(szToolTipINISection, "WindowRight",     400, INIFileName),
+			GetPrivateProfileInt(szToolTipINISection, "WindowBottom",    200, INIFileName)
+		});
+
+		gOldLocation = GetLocation();
+		SetLocked(GetPrivateProfileBool(szToolTipINISection, "Locked", false, INIFileName));
+		SetFades(GetPrivateProfileBool(szToolTipINISection, "Fades", true, INIFileName));
+
+		SetFadeDelay(GetPrivateProfileInt(szToolTipINISection, "Delay", 2000, INIFileName));
+		SetFadeDuration(GetPrivateProfileInt(szToolTipINISection, "Duration", 500, INIFileName));
+		SetAlpha(static_cast<uint8_t>(GetPrivateProfileInt(szToolTipINISection, "Alpha", 200, INIFileName)));
+		SetFadeToAlpha(static_cast<uint8_t>(GetPrivateProfileInt(szToolTipINISection, "FadeToAlpha", 255, INIFileName)));
+		SetBGType(GetPrivateProfileInt(szToolTipINISection, "BGType", 1, INIFileName));
+
+		ARGBCOLOR col;
+		col.A = static_cast<uint8_t>(GetPrivateProfileInt(szToolTipINISection, "BGTint.alpha", 255, INIFileName));
+		col.R = static_cast<uint8_t>(GetPrivateProfileInt(szToolTipINISection, "BGTint.red", 0, INIFileName));
+		col.G = static_cast<uint8_t>(GetPrivateProfileInt(szToolTipINISection, "BGTint.green", 0, INIFileName));
+		col.B = static_cast<uint8_t>(GetPrivateProfileInt(szToolTipINISection, "BGTint.blue", 0, INIFileName));
+		SetBGColor(col.ARGB);
+
+		gFollowMouse = GetPrivateProfileBool(szToolTipINISection, "FollowMouse", false, INIFileName);
+		gEnabled = GetPrivateProfileBool(szToolTipINISection, "Enabled", true, INIFileName);
+		gAutoClear = GetPrivateProfileBool(szToolTipINISection, "AutoClear", true, INIFileName);
+		gGuildOn = GetPrivateProfileBool(szToolTipINISection, "GuildOn", true, INIFileName);
+
+		gClearTimer = GetPrivateProfileInt(szToolTipINISection, "ClearTimer", 1000, INIFileName);
+	}
+
+	void SaveWindowSettings()
+	{
+		strcpy_s(szToolTipINISection, "Default");
+
+		WritePrivateProfileInt(szToolTipINISection, "WindowTop", GetLocation().top, INIFileName);
+		WritePrivateProfileInt(szToolTipINISection, "WindowLeft", GetLocation().left, INIFileName);
+		WritePrivateProfileInt(szToolTipINISection, "WindowRight", GetLocation().right, INIFileName);
+		WritePrivateProfileInt(szToolTipINISection, "WindowBottom", GetLocation().bottom, INIFileName);
+
+		WritePrivateProfileBool(szToolTipINISection, "Locked", IsLocked(), INIFileName);
+		WritePrivateProfileBool(szToolTipINISection, "Fades", GetFades(), INIFileName);
+		WritePrivateProfileInt(szToolTipINISection, "Delay", GetFadeDelay(), INIFileName);
+		WritePrivateProfileInt(szToolTipINISection, "Duration", GetFadeDuration(), INIFileName);
+		WritePrivateProfileInt(szToolTipINISection, "Alpha", GetAlpha(), INIFileName);
+		WritePrivateProfileInt(szToolTipINISection, "FadeToAlpha", GetFadeToAlpha(), INIFileName);
+		WritePrivateProfileInt(szToolTipINISection, "BGType", GetBGType(), INIFileName);
+
+		ARGBCOLOR col;
+		col.ARGB = GetBGColor();
+		WritePrivateProfileInt(szToolTipINISection, "BGTint.alpha", col.A, INIFileName);
+		WritePrivateProfileInt(szToolTipINISection, "BGTint.red", col.R, INIFileName);
+		WritePrivateProfileInt(szToolTipINISection, "BGTint.green", col.G, INIFileName);
+		WritePrivateProfileInt(szToolTipINISection, "BGTint.blue", col.B, INIFileName);
+
+		//Plugin Options
+		WritePrivateProfileBool(szToolTipINISection, "FollowMouse", gFollowMouse, INIFileName);
+		WritePrivateProfileBool(szToolTipINISection, "Enabled", gEnabled, INIFileName);
+		WritePrivateProfileBool(szToolTipINISection, "AutoClear", gAutoClear, INIFileName);
+		WritePrivateProfileInt(szToolTipINISection, "ClearTimer", gClearTimer, INIFileName);
+		WritePrivateProfileBool(szToolTipINISection, "GuildOn", gGuildOn, INIFileName);
+	}
+
+private:
+	CStmlWnd* m_display = nullptr;
+};
+
+CToolTipWnd* pToolTipWnd = nullptr;
+
+void DestroyToolTipWindow()
+{
+	if (pToolTipWnd)
+	{
+		delete pToolTipWnd;
+		pToolTipWnd = nullptr;
+	}
 }
 
-void LoadWindowSettings(CSidlScreenWnd* pWindow)
+void CreateToolTipWindow()
 {
-	strcpy_s(szToolTipINISection, "Default");
-
-	pWindow->SetLocation({
-		GetPrivateProfileInt(szToolTipINISection, "WindowLeft",      200, INIFileName),
-		GetPrivateProfileInt(szToolTipINISection, "WindowTop",       100, INIFileName),
-		GetPrivateProfileInt(szToolTipINISection, "WindowRight",     400, INIFileName),
-		GetPrivateProfileInt(szToolTipINISection, "WindowBottom",    200, INIFileName)
-	});
-
-	gOldLocation = pWindow->GetLocation();
-	pWindow->SetLocked(GetPrivateProfileBool(szToolTipINISection,      "Locked", false, INIFileName));
-	pWindow->SetFades(GetPrivateProfileBool(szToolTipINISection,       "Fades",  true,  INIFileName));
-
-	pWindow->SetFadeDelay(GetPrivateProfileInt(szToolTipINISection,    "Delay",       2000, INIFileName));
-	pWindow->SetFadeDuration(GetPrivateProfileInt(szToolTipINISection, "Duration",    500,  INIFileName));
-	pWindow->SetAlpha(GetPrivateProfileInt(szToolTipINISection,        "Alpha",       200,  INIFileName));
-	pWindow->SetFadeToAlpha(GetPrivateProfileInt(szToolTipINISection,  "FadeToAlpha", 255,  INIFileName));
-	pWindow->SetBGType(GetPrivateProfileInt(szToolTipINISection,       "BGType",      1,    INIFileName));
-
-	ARGBCOLOR col = { 0 };
-	col.A = GetPrivateProfileInt(szToolTipINISection, "BGTint.alpha", 255, INIFileName);
-	col.R = GetPrivateProfileInt(szToolTipINISection, "BGTint.red",   0,   INIFileName);
-	col.G = GetPrivateProfileInt(szToolTipINISection, "BGTint.green", 0,   INIFileName);
-	col.B = GetPrivateProfileInt(szToolTipINISection, "BGTint.blue",  0,   INIFileName);
-	pWindow->SetBGColor(col.ARGB);
-
-	gFollowMouse = GetPrivateProfileBool(szToolTipINISection, "FollowMouse", false, INIFileName);
-	gEnabled = GetPrivateProfileBool(szToolTipINISection,     "Enabled",     true,  INIFileName);
-	gAutoClear = GetPrivateProfileBool(szToolTipINISection,   "AutoClear",   true,  INIFileName);
-	gGuildOn = GetPrivateProfileBool(szToolTipINISection,     "GuildOn",     true,  INIFileName);
-
-	gClearTimer = GetPrivateProfileInt(szToolTipINISection, "ClearTimer", 1000, INIFileName);
-}
-
-void SaveWindowSettings(CSidlScreenWnd* pWindow)
-{
-	if (!pWindow)
+	if (pToolTipWnd)
 		return;
 
-	strcpy_s(szToolTipINISection, "Default");
+	DebugSpewAlways("%s::CreateToolTipWindow()", PLUGIN_NAME);
 
-	WritePrivateProfileInt(szToolTipINISection, "WindowTop",    pWindow->GetLocation().top,    INIFileName);
-	WritePrivateProfileInt(szToolTipINISection, "WindowLeft",   pWindow->GetLocation().left,   INIFileName);
-	WritePrivateProfileInt(szToolTipINISection, "WindowRight",  pWindow->GetLocation().right,  INIFileName);
-	WritePrivateProfileInt(szToolTipINISection, "WindowBottom", pWindow->GetLocation().bottom, INIFileName);
+	if (pSidlMgr->FindScreenPieceTemplate("ToolTipWnd"))
+	{
+		pToolTipWnd = new CToolTipWnd("ToolTipWnd");
+	}
+}
 
-	WritePrivateProfileBool(szToolTipINISection, "Locked",      pWindow->IsLocked(),        INIFileName);
-	WritePrivateProfileBool(szToolTipINISection, "Fades",       pWindow->GetFades(),        INIFileName);
-	WritePrivateProfileInt(szToolTipINISection,  "Delay",       pWindow->GetFadeDelay(),    INIFileName);
-	WritePrivateProfileInt(szToolTipINISection,  "Duration",    pWindow->GetFadeDuration(), INIFileName);
-	WritePrivateProfileInt(szToolTipINISection,  "Alpha",       pWindow->GetAlpha(),        INIFileName);
-	WritePrivateProfileInt(szToolTipINISection,  "FadeToAlpha", pWindow->GetFadeToAlpha(),  INIFileName);
-	WritePrivateProfileInt(szToolTipINISection,  "BGType",      pWindow->GetBGType(),       INIFileName);
+void ToolTipCmd(PlayerClient*, const char* arg)
+{
+	char szArg[MAX_STRING] = {};
+	GetArg(szArg, arg, 1);
+	bool bSaveStuff = false;
 
-	ARGBCOLOR col = { 0 };
-	col.ARGB = pWindow->GetBGColor();
-	WritePrivateProfileInt(szToolTipINISection, "BGTint.alpha", col.A, INIFileName);
-	WritePrivateProfileInt(szToolTipINISection, "BGTint.red",   col.R, INIFileName);
-	WritePrivateProfileInt(szToolTipINISection, "BGTint.green", col.G, INIFileName);
-	WritePrivateProfileInt(szToolTipINISection, "BGTint.blue",  col.B, INIFileName);
+	if (ci_equals(szArg, "on"))
+	{
+		gEnabled = true;
+		bSaveStuff = true;
 
-	//Plugin Options
-	WritePrivateProfileBool(szToolTipINISection, "FollowMouse", gFollowMouse, INIFileName);
-	WritePrivateProfileBool(szToolTipINISection, "Enabled",     gEnabled,     INIFileName);
-	WritePrivateProfileBool(szToolTipINISection, "AutoClear",   gAutoClear,   INIFileName);
-	WritePrivateProfileInt(szToolTipINISection,  "ClearTimer",  gClearTimer,  INIFileName);
-	WritePrivateProfileBool(szToolTipINISection, "GuildOn",     gGuildOn,     INIFileName);
+		WritePrivateProfileBool("Default", "Enabled", true, INIFileName);
+		WriteChatf("ToolTip is now: \agON");
+
+		if (!pToolTipWnd)
+			CreateToolTipWindow();
+
+		if (pToolTipWnd)
+			pToolTipWnd->Show(true);
+	}
+	else if (ci_equals(szArg, "off"))
+	{
+		gEnabled = false;
+		bSaveStuff = true;
+
+		if (pToolTipWnd)
+			pToolTipWnd->Show(false);
+
+		WritePrivateProfileBool("Default", "Enabled", false, INIFileName);
+		WriteChatf("ToolTip is now: \arOFF");
+	}
+	else if (ci_equals(szArg, "autoclear"))
+	{
+		GetArg(szArg, arg, 2);
+
+		if (ci_equals(szArg, "on"))
+		{
+			gAutoClear = true;
+			bSaveStuff = true;
+
+			WriteChatf("Autoclear is now: \agON");
+		}
+		else if (ci_equals(szArg, "off"))
+		{
+			gAutoClear = false;
+			bSaveStuff = true;
+
+			WriteChatf("Autoclear is now: \arOFF");
+		}
+		else
+		{
+			WriteChatf("Autoclear is curently %s", gAutoClear ? "\agON" : "\arOFF");
+		}
+
+	}
+	else if (ci_equals(szArg, "cleartimer"))
+	{
+		GetArg(szArg, arg, 2);
+
+		if (szArg[0] && IsNumber(&szArg[0]))
+		{
+			gClearTimer = atoi(szArg);
+			WriteChatf("ToolTip autoclear time: \ag%dms", gClearTimer);
+		}
+		else
+		{
+			WriteChatf("ToolTip autoclear reset to default: \ag1000ms");
+			gClearTimer = 1000;
+		}
+
+		bSaveStuff = true;
+	}
+	else if (ci_equals(szArg, "follow"))
+	{
+		GetArg(szArg, arg, 2);
+
+		if (ci_equals(szArg, "on"))
+		{
+			gFollowMouse = true;
+			bSaveStuff = true;
+
+			WriteChatf("FollowMouse is now: \agON");
+		}
+		else if (ci_equals(szArg, "off"))
+		{
+			gFollowMouse = false;
+			bSaveStuff = true;
+			WriteChatf("FollowMouse is now: \arOFF");
+		}
+		else
+		{
+			WriteChatf("FollowMouse is curently %s", gFollowMouse ? "\agON" : "\arOFF");
+		}
+	}
+	else if (ci_equals(szArg, "guild"))
+	{
+		GetArg(szArg, arg, 2);
+
+		if (ci_equals(szArg, "on"))
+		{
+			gGuildOn = true;
+			bSaveStuff = true;
+
+			WriteChatf("Displaying Guild is now: \arON");
+		}
+		else if (ci_equals(szArg, "off"))
+		{
+			gGuildOn = false;
+			bSaveStuff = true;
+
+			WriteChatf("Displaying Guild is now: \arOFF");
+		}
+		else
+		{
+			WriteChatf("Displaying Guild is curently %s", gGuildOn ? "\agON" : "\arOFF");
+		}
+	}
+	else
+	{
+		WriteChatf("[ToolTip Help] - make sure your hud is on either by F11 or by typing /hud always)");
+		WriteChatf("\ay/tooltip\ax \agon|off\ax (Enables or disables the Tooltip window)");
+		WriteChatf("\ay/tooltip\ax \agautoclear on|off\ax (Clears the tooltip window if you move the mouse)");
+		WriteChatf("\ay/tooltip\ax \agcleartimer <ms>\ax (Sets the number of milliseconds tooltip shoud wait before if clears the window if autoclear is on");
+		WriteChatf("\ay/tooltip\ax \agfollow on|off\ax (Will follow the mouse around)");
+		WriteChatf("\ay/tooltip\ax \agguild on|off\ax (Will display Guild tag in the tooltip as well)");
+	}
+
+	if (bSaveStuff)
+	{
+		if (pToolTipWnd)
+		{
+			pToolTipWnd->SaveWindowSettings();
+		}
+	}
+}
+
+PLUGIN_API void InitializePlugin()
+{
+	AddXMLFile("MQUI_ToolTipWnd.xml");
+	AddCommand("/tooltip", ToolTipCmd);
+}
+
+PLUGIN_API void ShutdownPlugin()
+{
+	RemoveCommand("/tooltip");
+	DestroyToolTipWindow();
+}
+
+PLUGIN_API void OnPulse()
+{
+	if (gGameState != GAMESTATE_INGAME || !pLocalPlayer)
+		return;
+
+	if (!pToolTipWnd)
+	{
+		CreateToolTipWindow();
+	}
+
+	if (!gEnabled || !pToolTipWnd)
+		return;
+
+	if (oldX != pMousePos->X || oldY != pMousePos->Y)
+	{
+		MouseHover = false;
+		oldX = pMousePos->X;
+		oldY = pMousePos->Y;
+
+		s_lastUpdate = steady_clock::now();
+	}
+
+	if (steady_clock::now() - s_lastUpdate > TooltipDelay)
+	{
+		MouseHover = true;
+	}
+
+	if (!pToolTipWnd->IsMouseOver())
+	{
+		if (pToolTipWnd->GetLocation() != gOldLocation)
+		{
+			gOldLocation = pToolTipWnd->GetLocation();
+			pToolTipWnd->SaveWindowSettings();
+		}
+	}
+
+	pToolTipWnd->Update();
 }
 
 PLUGIN_API void OnCleanUI()
